@@ -3,13 +3,15 @@
 
 
 import json
-import logging
+# import logging
 import lxml.html
-import os.path
+# import os.path
 import re
+from datetime import datetime
 import requests
 import time
-from collections import namedtuple
+import zipfile
+# from collections import namedtuple
 from tidylib import tidy_document
 from datetime import datetime
 from pathlib import Path
@@ -24,9 +26,6 @@ headers = {
             "Host": "hcj.gov.ua"
         }
 
-# директорія для даних
-Path("data").mkdir(parents=True, exist_ok=True)
-
 # сервер, шлях
 SRV = "https://hcj.gov.ua"
 PATH = "/announces"
@@ -40,6 +39,24 @@ DP_DICT = {
     "другої": "dp2",
     "третьої": "dp3"
 }
+DATADIR = "data"
+
+# директорія для даних
+Path(DATADIR).mkdir(parents=True, exist_ok=True)
+
+def zip_json(datadir=DATADIR):
+    zip_file_name = Path.cwd().joinpath(datadir, f"{datetime.strftime(datetime.today(), '%Y%m%d')}.zip")
+    file_pattern = '*.json'
+    try:
+        with zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for f in Path(datadir).glob(file_pattern):
+                zipf.write(f)
+    except Exception as e:
+        pass
+    else:
+        for f in Path(datadir).glob(file_pattern):
+            Path(f).unlink()
+    return 0
 
 
 def get_cvk_page(url):
@@ -339,8 +356,7 @@ hcj_data_box.sort(key=extract_date)
 
 for data in hcj_data_box:
     hcj_data_out[data["meta"]["talk_code"]] = data
-    out_session_filename = Path(os.path.join(
-        'data', f'hcj_{data["meta"]["talk_code"]}.json'))
+    out_session_filename = Path(DATADIR).joinpath(f'hcj_{data["meta"]["talk_code"]}.json')
     # Дамп на диск окремого засідання, якщо файлу з таким ім'ям 
     # на диску не існує
     if not out_session_filename.is_file():
@@ -349,5 +365,10 @@ for data in hcj_data_box:
     time.sleep(0.85)
 
 # Дамп на диск усіх засідань
-with open(os.path.join("data", "hcj_data.json"), "w") as f:
-    json.dump(hcj_data_out, f, ensure_ascii=False)
+try:
+    with open(Path(DATADIR).joinpath("hcj_data.json"), "w") as f:
+        json.dump(hcj_data_out, f, ensure_ascii=False)
+except Exception as e:
+    raise
+else:
+    zip_json()
